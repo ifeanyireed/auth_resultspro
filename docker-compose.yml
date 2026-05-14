@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  auth-service:
+    build: .
+    container_name: auth-resultspro
+    restart: always
+    ports:
+      - "8080:8080"
+    env_file: .env
+    volumes:
+      # Map the host's central DB directory to the container
+      # Adjust the host path (left side) as needed
+      - /var/lib/resultspro/auth:/app/data
+    environment:
+      - DB_PATH=/app/data/auth.db

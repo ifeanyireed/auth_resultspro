@@ -125,3 +125,57 @@ CREATE TABLE refresh_tokens (
 ### Phase 4: MFA Foundation (Optional later)
 1.  Add MFA fields to schema (already included).
 2.  Prepare endpoints for MFA setup/verification.
+
+---
+
+## Deployment Process (DigitalOcean Droplet with Docker)
+
+Since you are running multiple apps on a single Droplet, we use **Docker Compose** to isolate the auth service while mounting the SQLite database to a persistent external directory.
+
+### 1. Host Preparation
+On your Droplet, create the persistent directory for the database:
+```bash
+sudo mkdir -p /var/lib/resultspro/auth
+sudo chown -R $USER:$USER /var/lib/resultspro/auth
+```
+
+### 2. Environment Configuration
+Ensure your `.env` file on the server has the `DB_PATH` set to the *internal* container path:
+```bash
+DB_PATH=/app/data/auth.db
+```
+
+### 3. Docker Compose Setup
+The `docker-compose.yml` file handles the build and volume mapping:
+```yaml
+version: '3.8'
+services:
+  auth-service:
+    build: .
+    container_name: auth-resultspro
+    restart: always
+    ports:
+      - "8080:8080"
+    env_file: .env
+    volumes:
+      - /var/lib/resultspro/auth:/app/data
+```
+
+### 4. Launch
+```bash
+docker compose up -d --build
+```
+
+### 5. Nginx Reverse Proxy (Optional)
+To point `auth.resultspro.ng` to this service, add an Nginx config:
+```nginx
+server {
+    server_name auth.resultspro.ng;
+    location / {
+        proxy_pass http://localhost:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+Use `certbot` to enable HTTPS.
