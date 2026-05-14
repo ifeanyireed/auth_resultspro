@@ -91,9 +91,11 @@ func HandleForgotPassword(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("MOCK EMAIL: Password reset link for %s: https://auth.resultspro.ng/reset-password?token=%s", input.Email, token)
 
-	if err := utils.SendPasswordResetEmail(input.Email, token); err != nil {
-		log.Printf("Failed to send password reset email: %v", err)
-	}
+	go func() {
+		if err := utils.SendPasswordResetEmail(input.Email, token); err != nil {
+			log.Printf("Failed to send password reset email: %v", err)
+		}
+	}()
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"message": "If an account exists, a reset link has been sent."})

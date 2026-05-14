@@ -66,9 +66,11 @@ func HandleSignup(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("MOCK EMAIL: Verification link for %s: https://auth.resultspro.ng/verify-email?token=%s", user.Email, token)
 
-	if err := utils.SendVerificationEmail(user.Email, token); err != nil {
-		log.Printf("Failed to send verification email: %v", err)
-	}
+	go func() {
+		if err := utils.SendVerificationEmail(user.Email, token); err != nil {
+			log.Printf("Failed to send verification email: %v", err)
+		}
+	}()
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]string{"message": "User created. Please verify your email."})
