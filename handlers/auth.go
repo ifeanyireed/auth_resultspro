@@ -107,8 +107,21 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// In production, you might want to force email verification before login
-	// if user.AccountStatus == "unverified" { ... }
+	// MFA Check
+	var mfaEnabled bool
+	db.DB.QueryRow("SELECT mfa_enabled FROM users WHERE id = ?", user.ID).Scan(&mfaEnabled)
+	if mfaEnabled {
+		mfaToken, _ := utils.GenerateRandomString(32)
+		// Store mfaToken in a temporary table or cache with short expiry
+		// For now, we'll return it and expect it back in /auth/mfa/challenge
+		w.WriteHeader(http.StatusAccepted) // 202 Accepted indicates further action needed
+		json.NewEncoder(w).Encode(map[string]string{
+			"mfa_required": "true",
+			"mfa_token":    mfaToken,
+			"user_id":      user.ID,
+		})
+		return
+	}
 
 	// Generate tokens
 	accessToken, err := utils.GenerateAccessToken(user.ID)

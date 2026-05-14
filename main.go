@@ -43,6 +43,12 @@ func main() {
 	http.HandleFunc("/auth/change-password", handlers.HandleChangePassword)
 	http.HandleFunc("/auth/change-email", handlers.HandleChangeEmail)
 
+	// MFA Management
+	http.HandleFunc("/auth/mfa/setup", handlers.HandleMFASetup)
+	http.HandleFunc("/auth/mfa/verify", handlers.HandleMFAVerify)
+	http.HandleFunc("/auth/mfa/disable", handlers.HandleMFADisable)
+	http.HandleFunc("/auth/mfa/challenge", handlers.HandleMFAChallenge)
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
