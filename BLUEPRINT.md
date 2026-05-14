@@ -117,12 +117,18 @@ CREATE TABLE refresh_tokens (
 
 ### 1. Host Preparation
 ```bash
-sudo mkdir -p /var/lib/resultspro/auth
-sudo chown -R $USER:$USER /var/lib/resultspro/auth
+# Create persistent DB directory
+sudo mkdir -p /var/lib/auth_resultspro/data
+sudo chown -R $USER:$USER /var/lib/auth_resultspro/data
+
+# Setup app directory (optional if using git clone directly)
+# sudo mkdir -p /var/www/auth_resultspro
 ```
 
 ### 2. Launch
 ```bash
+# Assuming code is in /var/www/auth_resultspro
+cd /var/www/auth_resultspro
 docker compose up -d --build
 ```
 
