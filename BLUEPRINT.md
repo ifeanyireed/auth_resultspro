@@ -6,16 +6,18 @@ Design and implement a centralized authentication service at `auth.resultspro.ng
 ## Core Technologies
 *   **Backend:** Go (Golang) for high performance and concurrency.
 *   **Database:** SQLite for lightweight, file-based relational storage.
-*   **Authentication:** Google OAuth 2.0 and Local Email/Password (with bcrypt hashing).
+*   **Authentication:** Google OAuth 2.0, Microsoft OAuth 2.0, and Local Email/Password (with bcrypt hashing).
+*   **MFA:** TOTP-based Multi-Factor Authentication.
 *   **Session Management:** JWT (JSON Web Tokens) with a short-lived access token and long-lived refresh token strategy.
 
 ## Architecture & Security Model
 
 ### 1. Identity & Authentication
-*   **Multiple Providers:** Support for both Google OAuth and Local Email/Password authentication.
+*   **Multiple Providers:** Support for Google, Microsoft, and Local Email/Password authentication.
 *   **Account Status:** Users can be active, suspended, or unverified.
-*   **Security:** Passwords hashed securely using bcrypt. Foundation laid for future MFA support.
+*   **Security:** Passwords hashed securely using bcrypt.
 *   **Verification:** Email verification via secure, time-limited tokens.
+*   **MFA (TOTP)**: Secure secondary verification layer using standard authenticator apps.
 
 ### 2. Token Strategy & Sessions
 *   **Access Token (JWT):** Short-lived (e.g., 15 minutes). Contains minimal, non-sensitive claims (User ID). Used by sub-apps to authorize requests.
@@ -38,14 +40,15 @@ Design and implement a centralized authentication service at `auth.resultspro.ng
 CREATE TABLE users (
     id TEXT PRIMARY KEY,          -- Global User ID (UUID)
     email TEXT UNIQUE NOT NULL,
-    password_hash TEXT,           -- NULL if Google-only
-    google_id TEXT UNIQUE,        -- NULL if local-only
-    auth_provider TEXT NOT NULL,  -- 'google', 'local', or 'both'
+    password_hash TEXT,           -- NULL if OAuth-only
+    google_id TEXT UNIQUE,        -- NULL if not linked
+    microsoft_id TEXT UNIQUE,     -- NULL if not linked
+    auth_provider TEXT NOT NULL,  -- 'google', 'microsoft', 'local', or 'mixed'
     full_name TEXT,
     avatar_url TEXT,
     account_status TEXT DEFAULT 'unverified', -- 'unverified', 'active', 'suspended'
     mfa_enabled BOOLEAN DEFAULT FALSE,
-    mfa_secret TEXT,
+    mfa_secret TEXT,              -- TOTP Secret
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -73,7 +76,7 @@ CREATE TABLE refresh_tokens (
     id TEXT PRIMARY KEY,          -- Session ID
     user_id TEXT NOT NULL,
     token_hash TEXT NOT NULL,
-    device_info TEXT,             -- Optional: Store User-Agent or IP for session management UI
+    device_info TEXT,             -- Store User-Agent
     expires_at DATETIME NOT NULL,
     revoked BOOLEAN DEFAULT FALSE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -89,11 +92,18 @@ CREATE TABLE refresh_tokens (
 *   `POST /auth/signup` - Email/password registration.
 *   `POST /auth/login` - Email/password authentication.
 *   `GET /auth/google` & `/callback` - Google OAuth flow.
+*   `GET /auth/microsoft` & `/callback/microsoft` - Microsoft OAuth flow.
 *   `POST /auth/verify-email` - Validate email address using token.
 *   `POST /auth/forgot-password` - Request password reset email.
 *   `POST /auth/reset-password` - Set new password using token.
 *   `POST /auth/change-password` - Authenticated endpoint to change password.
-*   `POST /auth/change-email` - Authenticated endpoint to change email (requires re-verification).
+*   `POST /auth/change-email` - Authenticated endpoint to change email.
+
+### MFA Management
+*   `POST /auth/mfa/setup` - Generate TOTP secret.
+*   `POST /auth/mfa/verify` - Verify and enable MFA.
+*   `POST /auth/mfa/challenge` - Complete login with TOTP code.
+*   `POST /auth/mfa/disable` - Disable MFA with code.
 
 ### Session Management
 *   `POST /auth/refresh` - Exchange valid refresh token for new access token.
@@ -103,71 +113,20 @@ CREATE TABLE refresh_tokens (
 
 ---
 
-## Implementation Steps
-
-### Phase 1: Local Auth & Data Model Updates
-1.  Update SQLite schema to include new tables and columns.
-2.  Implement `bcrypt` for password hashing.
-3.  Implement signup and login handlers.
-4.  Update Google callback to handle merging or distinguishing local/Google accounts.
-
-### Phase 2: Session Enhancements
-1.  Update refresh token logic to support multi-device tracking.
-2.  Implement logout-all functionality.
-3.  Update introspection to check account status (reject if suspended/unverified).
-
-### Phase 3: Account Recovery & Management
-1.  Implement secure token generation for verification/resets.
-2.  Implement email verification handlers.
-3.  Implement password reset and change handlers.
-4.  (Optional) Add dummy email sending function to be replaced with real SMTP/API later.
-
-### Phase 4: MFA Foundation (Optional later)
-1.  Add MFA fields to schema (already included).
-2.  Prepare endpoints for MFA setup/verification.
-
----
-
 ## Deployment Process (DigitalOcean Droplet with Docker)
 
-Since you are running multiple apps on a single Droplet, we use **Docker Compose** to isolate the auth service while mounting the SQLite database to a persistent external directory.
-
 ### 1. Host Preparation
-On your Droplet, create the persistent directory for the database:
 ```bash
 sudo mkdir -p /var/lib/resultspro/auth
 sudo chown -R $USER:$USER /var/lib/resultspro/auth
 ```
 
-### 2. Environment Configuration
-Ensure your `.env` file on the server has the `DB_PATH` set to the *internal* container path:
-```bash
-DB_PATH=/app/data/auth.db
-```
-
-### 3. Docker Compose Setup
-The `docker-compose.yml` file handles the build and volume mapping:
-```yaml
-version: '3.8'
-services:
-  auth-service:
-    build: .
-    container_name: auth-resultspro
-    restart: always
-    ports:
-      - "7000:7000"
-    env_file: .env
-    volumes:
-      - /var/lib/resultspro/auth:/app/data
-```
-
-### 4. Launch
+### 2. Launch
 ```bash
 docker compose up -d --build
 ```
 
-### 5. Nginx Reverse Proxy (Optional)
-To point `auth.resultspro.ng` to this service, add an Nginx config:
+### 3. Nginx Reverse Proxy
 ```nginx
 server {
     server_name auth.resultspro.ng;
@@ -178,4 +137,3 @@ server {
     }
 }
 ```
-Use `certbot` to enable HTTPS.
