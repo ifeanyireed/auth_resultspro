@@ -1,57 +1,55 @@
 package utils
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
 	"fmt"
-	"net/http"
 	"os"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/sesv2"
+	"github.com/aws/aws-sdk-go-v2/service/sesv2/types"
 )
 
-type ResendPayload struct {
-	From    string `json:"from"`
-	To      []string `json:"to"`
-	Subject string   `json:"subject"`
-	Html    string   `json:"html"`
-}
-
 func SendEmail(to string, subject string, htmlBody string) error {
-	apiKey := os.Getenv("RESEND_API_KEY")
-	from := os.Getenv("SMTP_FROM") // We'll keep this variable name for consistency or rename it
-
-	if apiKey == "" {
-		return fmt.Errorf("RESEND_API_KEY is not set")
+	region := os.Getenv("AWS_REGION")
+	if region == "" {
+		region = "us-east-1" // Default region
 	}
 
-	payload := ResendPayload{
-		From:    from,
-		To:      []string{to},
-		Subject: subject,
-		Html:    htmlBody,
-	}
-
-	jsonPayload, err := json.Marshal(payload)
+	// Load AWS configuration (uses default credential chain)
+	// Requires AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in env
+	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion(region))
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to load SDK config: %v", err)
 	}
 
-	req, err := http.NewRequest("POST", "https://api.resend.com/emails", bytes.NewBuffer(jsonPayload))
+	client := sesv2.NewFromConfig(cfg)
+
+	from := os.Getenv("SMTP_FROM")
+
+	input := &sesv2.SendEmailInput{
+		FromEmailAddress: aws.String(from),
+		Destination: &types.Destination{
+			ToAddresses: []string{to},
+		},
+		Content: &types.EmailContent{
+			Simple: &types.Message{
+				Subject: &types.Content{
+					Data: aws.String(subject),
+				},
+				Body: &types.Body{
+					Html: &types.Content{
+						Data: aws.String(htmlBody),
+					},
+				},
+			},
+		},
+	}
+
+	_, err = client.SendEmail(context.TODO(), input)
 	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return fmt.Errorf("resend api returned non-ok status: %d", resp.StatusCode)
+		return fmt.Errorf("failed to send email via SES: %v", err)
 	}
 
 	return nil
