@@ -30,6 +30,7 @@ func createTables() {
 			email TEXT UNIQUE NOT NULL,
 			password_hash TEXT,
 			google_id TEXT UNIQUE,
+			microsoft_id TEXT UNIQUE,
 			auth_provider TEXT NOT NULL,
 			full_name TEXT,
 			avatar_url TEXT,

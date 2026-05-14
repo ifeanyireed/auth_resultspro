@@ -29,6 +29,8 @@ func main() {
 	http.HandleFunc("/auth/login", handlers.HandleLogin)
 	http.HandleFunc("/auth/google", handlers.HandleGoogleLogin)
 	http.HandleFunc("/callback", handlers.HandleGoogleCallback)
+	http.HandleFunc("/auth/microsoft", handlers.HandleMicrosoftLogin)
+	http.HandleFunc("/callback/microsoft", handlers.HandleMicrosoftCallback)
 	http.HandleFunc("/auth/refresh", handlers.HandleTokenRefresh)
 	http.HandleFunc("/auth/logout", handlers.HandleLogout)
 	http.HandleFunc("/auth/logout-all", handlers.HandleLogoutAll)

@@ -155,7 +155,7 @@ services:
     container_name: auth-resultspro
     restart: always
     ports:
-      - "8080:8080"
+      - "7000:7000"
     env_file: .env
     volumes:
       - /var/lib/resultspro/auth:/app/data
@@ -172,7 +172,7 @@ To point `auth.resultspro.ng` to this service, add an Nginx config:
 server {
     server_name auth.resultspro.ng;
     location / {
-        proxy_pass http://localhost:8080;
+        proxy_pass http://localhost:7000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
     }

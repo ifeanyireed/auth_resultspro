@@ -55,25 +55,83 @@ func HandleGoogleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Find or create user
+	processOAuthUser(w, r, googleUser.ID, "", googleUser.Email, googleUser.Name, googleUser.Picture, "google")
+}
+
+func HandleMicrosoftLogin(w http.ResponseWriter, r *http.Request) {
+	state := generateStateOauthCookie(w)
+	url := config.MicrosoftOAuthConfig.AuthCodeURL(state)
+	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+}
+
+func HandleMicrosoftCallback(w http.ResponseWriter, r *http.Request) {
+	oauthState, _ := r.Cookie("oauthstate")
+
+	if oauthState == nil || r.FormValue("state") != oauthState.Value {
+		http.Error(w, "Invalid state", http.StatusBadRequest)
+		return
+	}
+
+	token, err := config.MicrosoftOAuthConfig.Exchange(context.Background(), r.FormValue("code"))
+	if err != nil {
+		http.Error(w, "Code exchange failed", http.StatusInternalServerError)
+		return
+	}
+
+	client := config.MicrosoftOAuthConfig.Client(context.Background(), token)
+	response, err := client.Get("https://graph.microsoft.com/v1.0/me")
+	if err != nil {
+		http.Error(w, "Failed to get user info", http.StatusInternalServerError)
+		return
+	}
+	defer response.Body.Close()
+
+	var microsoftUser struct {
+		ID                string `json:"id"`
+		UserPrincipalName string `json:"userPrincipalName"`
+		DisplayName       string `json:"displayName"`
+	}
+
+	if err := json.NewDecoder(response.Body).Decode(&microsoftUser); err != nil {
+		http.Error(w, "Failed to decode user info", http.StatusInternalServerError)
+		return
+	}
+
+	processOAuthUser(w, r, "", microsoftUser.ID, microsoftUser.UserPrincipalName, microsoftUser.DisplayName, "", "microsoft")
+}
+
+func processOAuthUser(w http.ResponseWriter, r *http.Request, googleID, microsoftID, email, name, avatar, provider string) {
 	var user models.User
-	err = db.DB.QueryRow("SELECT id, email, google_id, auth_provider, full_name, avatar_url, account_status FROM users WHERE google_id = ? OR email = ?", googleUser.ID, googleUser.Email).Scan(
-		&user.ID, &user.Email, &user.GoogleID, &user.AuthProvider, &user.FullName, &user.AvatarURL, &user.AccountStatus)
+	query := "SELECT id, email, google_id, microsoft_id, auth_provider, full_name, avatar_url, account_status FROM users WHERE email = ?"
+	params := []interface{}{email}
+
+	if googleID != "" {
+		query += " OR google_id = ?"
+		params = append(params, googleID)
+	}
+	if microsoftID != "" {
+		query += " OR microsoft_id = ?"
+		params = append(params, microsoftID)
+	}
+
+	err := db.DB.QueryRow(query, params...).Scan(
+		&user.ID, &user.Email, &user.GoogleID, &user.MicrosoftID, &user.AuthProvider, &user.FullName, &user.AvatarURL, &user.AccountStatus)
 
 	if err == sql.ErrNoRows {
 		user = models.User{
 			ID:            uuid.New().String(),
-			Email:         googleUser.Email,
-			GoogleID:      googleUser.ID,
-			AuthProvider:  "google",
-			FullName:      googleUser.Name,
-			AvatarURL:     googleUser.Picture,
-			AccountStatus: "active", // Google verified accounts are active by default
+			Email:         email,
+			GoogleID:      googleID,
+			MicrosoftID:   microsoftID,
+			AuthProvider:  provider,
+			FullName:      name,
+			AvatarURL:     avatar,
+			AccountStatus: "active",
 			CreatedAt:     time.Now(),
 			UpdatedAt:     time.Now(),
 		}
-		_, err = db.DB.Exec("INSERT INTO users (id, email, google_id, auth_provider, full_name, avatar_url, account_status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-			user.ID, user.Email, user.GoogleID, user.AuthProvider, user.FullName, user.AvatarURL, user.AccountStatus, user.CreatedAt, user.UpdatedAt)
+		_, err = db.DB.Exec("INSERT INTO users (id, email, google_id, microsoft_id, auth_provider, full_name, avatar_url, account_status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			user.ID, user.Email, user.GoogleID, user.MicrosoftID, user.AuthProvider, user.FullName, user.AvatarURL, user.AccountStatus, user.CreatedAt, user.UpdatedAt)
 		if err != nil {
 			http.Error(w, "Failed to save user", http.StatusInternalServerError)
 			return
@@ -82,15 +140,23 @@ func HandleGoogleCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	} else {
-		// Update existing user if needed (e.g., they had a local account and now used Google)
-		if user.GoogleID == "" {
-			user.GoogleID = googleUser.ID
-			if user.AuthProvider == "local" {
-				user.AuthProvider = "both"
+		updated := false
+		if googleID != "" && user.GoogleID == "" {
+			user.GoogleID = googleID
+			updated = true
+		}
+		if microsoftID != "" && user.MicrosoftID == "" {
+			user.MicrosoftID = microsoftID
+			updated = true
+		}
+
+		if updated {
+			if user.AuthProvider != provider && user.AuthProvider != "both" && user.AuthProvider != "mixed" {
+				user.AuthProvider = "mixed"
 			}
-			user.AccountStatus = "active" // Email is verified by Google
-			_, err = db.DB.Exec("UPDATE users SET google_id = ?, auth_provider = ?, account_status = ?, updated_at = ? WHERE id = ?",
-				user.GoogleID, user.AuthProvider, user.AccountStatus, time.Now(), user.ID)
+			user.AccountStatus = "active"
+			_, err = db.DB.Exec("UPDATE users SET google_id = ?, microsoft_id = ?, auth_provider = ?, account_status = ?, updated_at = ? WHERE id = ?",
+				user.GoogleID, user.MicrosoftID, user.AuthProvider, user.AccountStatus, time.Now(), user.ID)
 			if err != nil {
 				http.Error(w, "Failed to update user", http.StatusInternalServerError)
 				return

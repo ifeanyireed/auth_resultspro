@@ -7,6 +7,7 @@ type User struct {
 	Email         string    `json:"email"`
 	PasswordHash  string    `json:"-"`
 	GoogleID      string    `json:"google_id,omitempty"`
+	MicrosoftID   string    `json:"microsoft_id,omitempty"`
 	AuthProvider  string    `json:"auth_provider"`
 	FullName      string    `json:"full_name"`
 	AvatarURL     string    `json:"avatar_url"`
