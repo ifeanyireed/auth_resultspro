@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -11,20 +12,61 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sesv2/types"
 )
 
-func SendEmail(to string, subject string, htmlBody string) error {
-	region := os.Getenv("AWS_REGION")
-	if region == "" {
-		region = "us-east-1" // Default region
-	}
+// SESClientAPI defines the interface for the SES client
+type SESClientAPI interface {
+	SendEmail(ctx context.Context, params *sesv2.SendEmailInput, optFns ...func(*sesv2.Options)) (*sesv2.SendEmailOutput, error)
+}
 
-	// Load AWS configuration (uses default credential chain)
-	// Requires AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in env
-	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion(region))
+var (
+	sesClient SESClientAPI
+	once      sync.Once
+)
+
+func getSESClient() (SESClientAPI, error) {
+	var err error
+	once.Do(func() {
+		if sesClient != nil {
+			return
+		}
+
+		region := os.Getenv("AWS_REGION")
+		if region == "" {
+			region = "us-east-1" // Default region
+		}
+
+		// Load AWS configuration (uses default credential chain)
+		// Requires AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in env
+		cfg, err2 := config.LoadDefaultConfig(context.TODO(), config.WithRegion(region))
+		if err2 != nil {
+			err = fmt.Errorf("unable to load SDK config: %v", err2)
+			return
+		}
+
+		sesClient = sesv2.NewFromConfig(cfg)
+	})
+
 	if err != nil {
-		return fmt.Errorf("unable to load SDK config: %v", err)
+		return nil, err
+	}
+	if sesClient == nil {
+		// This can happen if sesClient was set manually in tests before once.Do was called
+		// or if once.Do already ran and sesClient is still nil (though unlikely here)
+		return nil, fmt.Errorf("ses client not initialized")
 	}
 
-	client := sesv2.NewFromConfig(cfg)
+	return sesClient, nil
+}
+
+// SetSESClient allows overriding the SES client (mainly for tests)
+func SetSESClient(client SESClientAPI) {
+	sesClient = client
+}
+
+func SendEmail(to string, subject string, htmlBody string) error {
+	client, err := getSESClient()
+	if err != nil {
+		return err
+	}
 
 	from := os.Getenv("SMTP_FROM")
 
