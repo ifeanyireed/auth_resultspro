@@ -12,5 +12,5 @@ services:
       # Map the host's central DB directory to the container
       - /var/lib/auth_resultspro/data:/app/data
     environment:
-      - DB_PATH=/app/data/auth.db
+      - DATABASE_URL=file:/app/data/auth.db
       - PORT=7000

@@ -17,12 +17,17 @@ func main() {
 		log.Println("Warning: .env file not found, using environment variables")
 	}
 
-	dbPath := os.Getenv("DB_PATH")
-	if dbPath == "" {
-		dbPath = "auth.db"
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		databaseURL = "auth.db"
 	}
 
-	db.InitDB(dbPath)
+	// Strip "file:" prefix if present for the SQLite driver
+	if len(databaseURL) > 5 && databaseURL[:5] == "file:" {
+		databaseURL = databaseURL[5:]
+	}
+
+	db.InitDB(databaseURL)
 	config.InitConfig()
 
 	http.HandleFunc("/auth/signup", handlers.HandleSignup)
