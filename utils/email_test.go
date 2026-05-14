@@ -54,7 +54,7 @@ func TestSendEmail(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mock := &mockSESClient{err: tt.mockErr}
-			sesClient = mock
+			SetSESClient(mock)
 			err := SendEmail(tt.to, tt.subject, tt.body)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("SendEmail() error = %v, wantErr %v", err, tt.wantErr)
@@ -80,7 +80,7 @@ func TestSendVerificationEmail(t *testing.T) {
 	defer os.Unsetenv("SMTP_FROM")
 
 	mock := &mockSESClient{}
-	sesClient = mock
+	SetSESClient(mock)
 	token := "test-token"
 	to := "user@example.com"
 	err := SendVerificationEmail(to, token)
@@ -102,7 +102,7 @@ func TestSendPasswordResetEmail(t *testing.T) {
 	defer os.Unsetenv("SMTP_FROM")
 
 	mock := &mockSESClient{}
-	sesClient = mock
+	SetSESClient(mock)
 	token := "test-token"
 	to := "user@example.com"
 	err := SendPasswordResetEmail(to, token)

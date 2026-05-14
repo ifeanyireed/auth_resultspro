@@ -49,8 +49,6 @@ func getSESClient() (SESClientAPI, error) {
 		return nil, err
 	}
 	if sesClient == nil {
-		// This can happen if sesClient was set manually in tests before once.Do was called
-		// or if once.Do already ran and sesClient is still nil (though unlikely here)
 		return nil, fmt.Errorf("ses client not initialized")
 	}
 
@@ -60,6 +58,12 @@ func getSESClient() (SESClientAPI, error) {
 // SetSESClient allows overriding the SES client (mainly for tests)
 func SetSESClient(client SESClientAPI) {
 	sesClient = client
+}
+
+// ResetSESClient clears the initialized client and allow re-initialization (mainly for live testing different configs)
+func ResetSESClient() {
+	sesClient = nil
+	once = sync.Once{}
 }
 
 func SendEmail(to string, subject string, htmlBody string) error {
