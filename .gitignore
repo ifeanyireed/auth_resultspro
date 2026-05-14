@@ -1,0 +1,6 @@
+.env
+data/
+auth-service
+*.db
+*.db-shm
+*.db-wal
