@@ -109,3 +109,42 @@ Sub-apps should verify the user's session by calling the introspection endpoint.
 - **Reset Password**: `POST /auth/reset-password` with `{ "token": "...", "new_password": "..." }`
 - **Change Password**: `POST /auth/change-password` (Auth required) with `{ "old_password": "...", "new_password": "..." }`
 - **Change Email**: `POST /auth/change-email` (Auth required) with `{ "new_email": "..." }`
+
+---
+
+## 5. Multi-Factor Authentication (MFA)
+
+The service supports TOTP-based MFA (compatible with Google Authenticator, Authy, etc.).
+
+### MFA Setup
+1.  **Generate Secret**: `POST /auth/mfa/setup` (Auth required)
+    - Returns: `{ "secret": "...", "url": "otpauth://..." }`.
+2.  **Verify & Enable**: `POST /auth/mfa/verify` (Auth required)
+    - Body: `{ "code": "6-digit-code" }`.
+    - Finalizes setup and enables MFA for the account.
+
+### MFA Login Flow
+If MFA is enabled, the standard login (`/auth/login`) will return:
+```json
+{
+  "mfa_required": "true",
+  "mfa_token": "temporary_token",
+  "user_id": "user_id"
+}
+```
+
+To complete login:
+- **Endpoint**: `POST /auth/mfa/challenge`
+- **Body**:
+  ```json
+  {
+    "user_id": "user_id",
+    "mfa_token": "temporary_token",
+    "code": "6-digit-code"
+  }
+  ```
+- **Response**: Returns final `access_token` and `refresh_token`.
+
+### MFA Disable
+- **Endpoint**: `POST /auth/mfa/disable` (Auth required)
+- **Body**: `{ "code": "6-digit-code" }`
