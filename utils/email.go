@@ -12,7 +12,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sesv2/types"
 )
 
-// SESClientAPI defines the interface for the SES client
 type SESClientAPI interface {
 	SendEmail(ctx context.Context, params *sesv2.SendEmailInput, optFns ...func(*sesv2.Options)) (*sesv2.SendEmailOutput, error)
 }
@@ -28,42 +27,21 @@ func getSESClient() (SESClientAPI, error) {
 		if sesClient != nil {
 			return
 		}
-
 		region := os.Getenv("AWS_REGION")
 		if region == "" {
-			region = "us-east-1" // Default region
+			region = "us-east-1"
 		}
-
-		// Load AWS configuration (uses default credential chain)
-		// Requires AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in env
 		cfg, err2 := config.LoadDefaultConfig(context.TODO(), config.WithRegion(region))
 		if err2 != nil {
 			err = fmt.Errorf("unable to load SDK config: %v", err2)
 			return
 		}
-
 		sesClient = sesv2.NewFromConfig(cfg)
 	})
-
 	if err != nil {
 		return nil, err
 	}
-	if sesClient == nil {
-		return nil, fmt.Errorf("ses client not initialized")
-	}
-
 	return sesClient, nil
-}
-
-// SetSESClient allows overriding the SES client (mainly for tests)
-func SetSESClient(client SESClientAPI) {
-	sesClient = client
-}
-
-// ResetSESClient clears the initialized client and allow re-initialization (mainly for live testing different configs)
-func ResetSESClient() {
-	sesClient = nil
-	once = sync.Once{}
 }
 
 func SendEmail(to string, subject string, htmlBody string) error {
@@ -71,9 +49,7 @@ func SendEmail(to string, subject string, htmlBody string) error {
 	if err != nil {
 		return err
 	}
-
 	from := os.Getenv("SMTP_FROM")
-
 	input := &sesv2.SendEmailInput{
 		FromEmailAddress: aws.String(from),
 		Destination: &types.Destination{
@@ -92,23 +68,39 @@ func SendEmail(to string, subject string, htmlBody string) error {
 			},
 		},
 	}
-
 	_, err = client.SendEmail(context.TODO(), input)
-	if err != nil {
-		return fmt.Errorf("failed to send email via SES: %v", err)
-	}
-
-	return nil
+	return err
 }
 
-func SendVerificationEmail(to string, token string) error {
-	subject := "Verify your email - ResultsPro"
-	body := fmt.Sprintf("<p>Please verify your email by clicking the link below:</p><p><a href=\"https://auth.resultspro.ng/verify-email?token=%s\">Verify Email</a></p>", token)
+func SendVerificationEmail(to string, otp string) error {
+	subject := otp + " is your ResultsPro verification code"
+	body := fmt.Sprintf(\`
+<div style="font-family: 'Google Sans',Roboto,RobotoDraft,Helvetica,Arial,sans-serif; background-color: #ffffff; padding: 40px; margin: 0; color: #3c4043; border: 1px solid #dadce0; border-radius: 8px; max-width: 600px;">
+  <img src="https://resultspro.ng/logo.png" alt="ResultsPro" style="height: 32px; margin-bottom: 24px;">
+  <h1 style="font-size: 24px; font-weight: 400; color: #202124; margin-bottom: 24px; margin-top: 0;">Verify your email address</h1>
+  <p style="font-size: 14px; line-height: 20px; margin-bottom: 24px;">
+    To finish setting up your ResultsPro account, we need to make sure this email address is yours.
+  </p>
+  <p style="font-size: 14px; line-height: 20px; margin-bottom: 8px;">
+    Use this verification code to complete your signup:
+  </p>
+  <div style="background-color: #f8f9fa; border-radius: 4px; padding: 16px; text-align: center; margin-bottom: 24px;">
+    <span style="font-size: 32px; font-weight: 500; letter-spacing: 8px; color: #1a73e8;">%s</span>
+  </div>
+  <p style="font-size: 14px; line-height: 20px; margin-bottom: 24px;">
+    This code will expire in 24 hours. If you didn't request this code, you can safely ignore this email.
+  </p>
+  <hr style="border: none; border-top: 1px solid #dadce0; margin-bottom: 24px;">
+  <p style="font-size: 12px; line-height: 16px; color: #70757a;">
+    You received this email because it was used to register for ResultsPro. 
+    If you're not sure why you're receiving this, please contact support.
+  </p>
+</div>\`, otp)
 	return SendEmail(to, subject, body)
 }
 
 func SendPasswordResetEmail(to string, token string) error {
 	subject := "Reset your password - ResultsPro"
-	body := fmt.Sprintf("<p>Reset your password by clicking the link below:</p><p><a href=\"https://auth.resultspro.ng/reset-password?token=%s\">Reset Password</a></p>", token)
+	body := fmt.Sprintf("<p>Reset your password by clicking the link below:</p><p><a href=\"https://classroompro.com/reset-password?token=%s\">Reset Password</a></p>", token)
 	return SendEmail(to, subject, body)
 }

@@ -3,7 +3,9 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"time"
 
@@ -14,11 +16,16 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+func generateOTP() string {
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	return fmt.Sprintf("%06d", r.Intn(1000000))
+}
+
 func HandleSignup(w http.ResponseWriter, r *http.Request) {
 	var input struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-		FullName string `json:"full_name"`
+		Email    string \`json:"email"\`
+		Password string \`json:"password"\`
+		FullName string \`json:"full_name"\`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
@@ -43,43 +50,48 @@ func HandleSignup(w http.ResponseWriter, r *http.Request) {
 		AuthProvider:  "local",
 		FullName:      input.FullName,
 		AccountStatus: "unverified",
+		MFAEnabled:    false,
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
 	}
 
-	_, err = db.DB.Exec("INSERT INTO users (id, email, password_hash, auth_provider, full_name, account_status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-		user.ID, user.Email, user.PasswordHash, user.AuthProvider, user.FullName, user.AccountStatus, user.CreatedAt, user.UpdatedAt)
+	// Updated to match the Prisma-generated SQLite schema (seed_central_auth.sql style)
+	query := \`INSERT INTO users (id, email, password_hash, auth_provider, full_name, account_status, mfa_enabled, created_at, updated_at) 
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)\`
+	
+	_, err = db.DB.Exec(query,
+		user.ID, user.Email, user.PasswordHash, user.AuthProvider, user.FullName, user.AccountStatus, 0, user.CreatedAt, user.UpdatedAt)
+	
 	if err != nil {
+		log.Printf("Signup DB Error: %v", err)
 		http.Error(w, "User already exists or database error", http.StatusConflict)
 		return
 	}
 
-	// Generate email verification token
-	token, _ := utils.GenerateRandomString(32)
+	otp := generateOTP()
 	expiresAt := time.Now().Add(time.Hour * 24)
 	_, err = db.DB.Exec("INSERT INTO verification_tokens (id, user_id, token_hash, type, expires_at) VALUES (?, ?, ?, 'email_verify', ?)",
-		uuid.New().String(), user.ID, token, expiresAt)
+		uuid.New().String(), user.ID, otp, expiresAt)
 	if err != nil {
-		// Log error but don't fail signup if user is already created
 		log.Printf("Failed to create verification token: %v", err)
 	}
 
-	log.Printf("MOCK EMAIL: Verification link for %s: https://auth.resultspro.ng/verify-email?token=%s", user.Email, token)
+	log.Printf("OTP for %s: %s", user.Email, otp)
 
 	go func() {
-		if err := utils.SendVerificationEmail(user.Email, token); err != nil {
+		if err := utils.SendVerificationEmail(user.Email, otp); err != nil {
 			log.Printf("Failed to send verification email: %v", err)
 		}
 	}()
 
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{"message": "User created. Please verify your email."})
+	json.NewEncoder(w).Encode(map[string]string{"message": "User created. Please check your email for verification code."})
 }
 
 func HandleLogin(w http.ResponseWriter, r *http.Request) {
 	var input struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
+		Email    string \`json:"email"\`
+		Password string \`json:"password"\`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
@@ -87,6 +99,7 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var user models.User
+	// auth_provider check updated to match database underscore naming
 	err := db.DB.QueryRow("SELECT id, email, password_hash, account_status FROM users WHERE email = ? AND (auth_provider = 'local' OR auth_provider = 'both')", input.Email).Scan(
 		&user.ID, &user.Email, &user.PasswordHash, &user.AccountStatus)
 
@@ -109,14 +122,11 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// MFA Check
 	var mfaEnabled bool
 	db.DB.QueryRow("SELECT mfa_enabled FROM users WHERE id = ?", user.ID).Scan(&mfaEnabled)
 	if mfaEnabled {
 		mfaToken, _ := utils.GenerateRandomString(32)
-		// Store mfaToken in a temporary table or cache with short expiry
-		// For now, we'll return it and expect it back in /auth/mfa/challenge
-		w.WriteHeader(http.StatusAccepted) // 202 Accepted indicates further action needed
+		w.WriteHeader(http.StatusAccepted)
 		json.NewEncoder(w).Encode(map[string]string{
 			"mfa_required": "true",
 			"mfa_token":    mfaToken,
@@ -125,7 +135,6 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate tokens
 	accessToken, err := utils.GenerateAccessToken(user.ID)
 	if err != nil {
 		http.Error(w, "Failed to generate access token", http.StatusInternalServerError)
@@ -138,7 +147,6 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Save refresh token
 	refreshTokenID := uuid.New().String()
 	expiresAt := time.Now().Add(time.Hour * 24 * 7)
 	deviceInfo := r.UserAgent()
