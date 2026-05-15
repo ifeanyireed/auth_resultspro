@@ -23,9 +23,9 @@ func generateOTP() string {
 
 func HandleSignup(w http.ResponseWriter, r *http.Request) {
 	var input struct {
-		Email    string \`json:"email"\`
-		Password string \`json:"password"\`
-		FullName string \`json:"full_name"\`
+		Email    string `json:"email"`
+		Password string `json:"password"`
+		FullName string `json:"full_name"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
@@ -56,8 +56,8 @@ func HandleSignup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Updated to match the Prisma-generated SQLite schema (seed_central_auth.sql style)
-	query := \`INSERT INTO users (id, email, password_hash, auth_provider, full_name, account_status, mfa_enabled, created_at, updated_at) 
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)\`
+	query := `INSERT INTO users (id, email, password_hash, auth_provider, full_name, account_status, mfa_enabled, created_at, updated_at) 
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	
 	_, err = db.DB.Exec(query,
 		user.ID, user.Email, user.PasswordHash, user.AuthProvider, user.FullName, user.AccountStatus, 0, user.CreatedAt, user.UpdatedAt)
@@ -90,8 +90,8 @@ func HandleSignup(w http.ResponseWriter, r *http.Request) {
 
 func HandleLogin(w http.ResponseWriter, r *http.Request) {
 	var input struct {
-		Email    string \`json:"email"\`
-		Password string \`json:"password"\`
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, "Invalid request", http.StatusBadRequest)

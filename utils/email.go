@@ -21,6 +21,10 @@ var (
 	once      sync.Once
 )
 
+func SetSESClient(client SESClientAPI) {
+	sesClient = client
+}
+
 func getSESClient() (SESClientAPI, error) {
 	var err error
 	once.Do(func() {
@@ -74,7 +78,7 @@ func SendEmail(to string, subject string, htmlBody string) error {
 
 func SendVerificationEmail(to string, otp string) error {
 	subject := otp + " is your ResultsPro verification code"
-	body := fmt.Sprintf(\`
+	body := fmt.Sprintf(`
 <div style="font-family: 'Google Sans',Roboto,RobotoDraft,Helvetica,Arial,sans-serif; background-color: #ffffff; padding: 40px; margin: 0; color: #3c4043; border: 1px solid #dadce0; border-radius: 8px; max-width: 600px;">
   <img src="https://resultspro.ng/logo.png" alt="ResultsPro" style="height: 32px; margin-bottom: 24px;">
   <h1 style="font-size: 24px; font-weight: 400; color: #202124; margin-bottom: 24px; margin-top: 0;">Verify your email address</h1>
@@ -95,7 +99,7 @@ func SendVerificationEmail(to string, otp string) error {
     You received this email because it was used to register for ResultsPro. 
     If you're not sure why you're receiving this, please contact support.
   </p>
-</div>\`, otp)
+</div>`, otp)
 	return SendEmail(to, subject, body)
 }
 

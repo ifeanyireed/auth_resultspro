@@ -91,7 +91,7 @@ func TestSendVerificationEmail(t *testing.T) {
 	if mock.input.Destination.ToAddresses[0] != to {
 		t.Errorf("expected to %s, got %s", to, mock.input.Destination.ToAddresses[0])
 	}
-	expectedBodySub := "token=test-token"
+	expectedBodySub := token
 	if !strings.Contains(*mock.input.Content.Simple.Body.Html.Data, expectedBodySub) {
 		t.Errorf("expected body to contain %s", expectedBodySub)
 	}
