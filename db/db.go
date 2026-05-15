@@ -29,6 +29,7 @@ func createTables() {
 			id TEXT PRIMARY KEY,
 			email TEXT UNIQUE NOT NULL,
 			password_hash TEXT,
+                        role TEXT DEFAULT "STUDENT",
 			google_id TEXT UNIQUE,
 			microsoft_id TEXT UNIQUE,
 			auth_provider TEXT NOT NULL,
