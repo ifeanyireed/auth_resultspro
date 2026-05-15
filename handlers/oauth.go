@@ -124,14 +124,14 @@ func processOAuthUser(w http.ResponseWriter, r *http.Request, googleID, microsof
                         GoogleID:      sql.NullString{String: googleID, Valid: googleID != ""},
                         MicrosoftID:   sql.NullString{String: microsoftID, Valid: microsoftID != ""},
                         AuthProvider:  provider,
-                        FullName:      sql.NullString{String: name, Valid: true},
+                        FullName:      sql.NullString{String: name, Valid: name != ""},
                         AvatarURL:     sql.NullString{String: avatar, Valid: avatar != ""},
                         AccountStatus: "active",
                         CreatedAt:     time.Now(),
                         UpdatedAt:     time.Now(),
                 }
                 _, err = db.DB.Exec("INSERT INTO users (id, email, google_id, microsoft_id, auth_provider, full_name, avatar_url, account_status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        user.ID, user.Email, user.GoogleID.String, user.MicrosoftID.String, user.AuthProvider, user.FullName.String, user.AvatarURL.String, user.AccountStatus, user.CreatedAt, user.UpdatedAt)
+                        user.ID, user.Email, user.GoogleID, user.MicrosoftID, user.AuthProvider, user.FullName, user.AvatarURL, user.AccountStatus, user.CreatedAt, user.UpdatedAt)
                 if err != nil {
                         http.Error(w, "Failed to save user", http.StatusInternalServerError)
                         return
@@ -156,7 +156,7 @@ func processOAuthUser(w http.ResponseWriter, r *http.Request, googleID, microsof
                         }
                         user.AccountStatus = "active"
                         _, err = db.DB.Exec("UPDATE users SET google_id = ?, microsoft_id = ?, auth_provider = ?, account_status = ?, updated_at = ? WHERE id = ?",
-                                user.GoogleID.String, user.MicrosoftID.String, user.AuthProvider, user.AccountStatus, time.Now(), user.ID)
+                                user.GoogleID, user.MicrosoftID, user.AuthProvider, user.AccountStatus, time.Now(), user.ID)
                         if err != nil {
                                 http.Error(w, "Failed to update user", http.StatusInternalServerError)
                                 return

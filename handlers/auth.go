@@ -53,9 +53,27 @@ func HandleSignup(w http.ResponseWriter, r *http.Request) {
         query := `INSERT INTO users (id, email, password_hash, auth_provider, full_name, phone, sex, date_of_birth, address, account_status, mfa_enabled, created_at, updated_at) 
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
+        var dob sql.NullTime
+        if input.DateOfBirth != "" {
+                if t, err := time.Parse(time.RFC3339, input.DateOfBirth); err == nil {
+                        dob = sql.NullTime{Time: t, Valid: true}
+                }
+        }
+
         _, err = db.DB.Exec(query,
-                userID, input.Email, string(hashedPassword), "local", input.FullName, 
-                input.Phone, input.Sex, input.DateOfBirth, input.Address, "unverified", 0, now, now)
+                userID, 
+                input.Email, 
+                string(hashedPassword), 
+                "local", 
+                sql.NullString{String: input.FullName, Valid: input.FullName != ""}, 
+                sql.NullString{String: input.Phone, Valid: input.Phone != ""}, 
+                sql.NullString{String: input.Sex, Valid: input.Sex != ""}, 
+                dob, 
+                sql.NullString{String: input.Address, Valid: input.Address != ""}, 
+                "unverified", 
+                false, 
+                now, 
+                now)
 
         if err != nil {
                 log.Printf("Signup DB Error: %v", err)
