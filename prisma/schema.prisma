@@ -16,6 +16,10 @@ model User {
   authProvider     String              @map("auth_provider")
   fullName         String?             @map("full_name")
   avatarUrl        String?             @map("avatar_url")
+  phone            String?
+  sex              String?
+  dateOfBirth      DateTime?           @map("date_of_birth")
+  address          String?
   accountStatus    String              @default("unverified") @map("account_status")
   mfaEnabled       Boolean             @default(false) @map("mfa_enabled")
   mfaSecret        String?             @map("mfa_secret")

@@ -23,9 +23,13 @@ func generateOTP() string {
 
 func HandleSignup(w http.ResponseWriter, r *http.Request) {
         var input struct {
-                Email    string `json:"email"`
-                Password string `json:"password"`
-                FullName string `json:"full_name"`
+                Email       string `json:"email"`
+                Password    string `json:"password"`
+                FullName    string `json:"full_name"`
+                Phone       string `json:"phone"`
+                Sex         string `json:"sex"`
+                DateOfBirth string `json:"date_of_birth"`
+                Address     string `json:"address"`
         }
         if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
                 http.Error(w, "Invalid request", http.StatusBadRequest)
@@ -43,23 +47,15 @@ func HandleSignup(w http.ResponseWriter, r *http.Request) {
                 return
         }
 
-        user := models.User{
-                ID:            uuid.New().String(),
-                Email:         input.Email,
-                PasswordHash:  sql.NullString{String: string(hashedPassword), Valid: true},
-                AuthProvider:  "local",
-                FullName:      sql.NullString{String: input.FullName, Valid: true},
-                AccountStatus: "unverified",
-                MFAEnabled:    false,
-                CreatedAt:     time.Now(),
-                UpdatedAt:     time.Now(),
-        }
+        userID := uuid.New().String()
+        now := time.Now()
 
-        query := `INSERT INTO users (id, email, password_hash, auth_provider, full_name, account_status, mfa_enabled, created_at, updated_at) 
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        query := `INSERT INTO users (id, email, password_hash, auth_provider, full_name, phone, sex, date_of_birth, address, account_status, mfa_enabled, created_at, updated_at) 
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
         _, err = db.DB.Exec(query,
-                user.ID, user.Email, user.PasswordHash.String, user.AuthProvider, user.FullName.String, user.AccountStatus, 0, user.CreatedAt, user.UpdatedAt)
+                userID, input.Email, string(hashedPassword), "local", input.FullName, 
+                input.Phone, input.Sex, input.DateOfBirth, input.Address, "unverified", 0, now, now)
 
         if err != nil {
                 log.Printf("Signup DB Error: %v", err)
@@ -70,15 +66,15 @@ func HandleSignup(w http.ResponseWriter, r *http.Request) {
         otp := generateOTP()
         expiresAt := time.Now().Add(time.Hour * 24)
         _, err = db.DB.Exec("INSERT INTO verification_tokens (id, user_id, token_hash, type, expires_at) VALUES (?, ?, ?, 'email_verify', ?)",
-                uuid.New().String(), user.ID, otp, expiresAt)
+                uuid.New().String(), userID, otp, expiresAt)
         if err != nil {
                 log.Printf("Failed to create verification token: %v", err)
         }
 
-        log.Printf("OTP for %s: %s", user.Email, otp)
+        log.Printf("OTP for %s: %s", input.Email, otp)
 
         go func() {
-                if err := utils.SendVerificationEmail(user.Email, otp); err != nil {
+                if err := utils.SendVerificationEmail(input.Email, otp); err != nil {
                         log.Printf("Failed to send verification email: %v", err)
                 }
         }()

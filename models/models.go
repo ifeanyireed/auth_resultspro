@@ -14,6 +14,10 @@ type User struct {
         AuthProvider  string         `json:"auth_provider"`
         FullName      sql.NullString `json:"full_name"`
         AvatarURL     sql.NullString `json:"avatar_url"`
+        Phone         sql.NullString `json:"phone,omitempty"`
+        Sex           sql.NullString `json:"sex,omitempty"`
+        DateOfBirth   sql.NullTime   `json:"date_of_birth,omitempty"`
+        Address       sql.NullString `json:"address,omitempty"`
         AccountStatus string         `json:"account_status"`
         MFAEnabled    bool           `json:"mfa_enabled"`
         MFASecret     sql.NullString `json:"-"`

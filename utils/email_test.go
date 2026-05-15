@@ -55,7 +55,7 @@ func TestSendEmail(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mock := &mockSESClient{err: tt.mockErr}
 			SetSESClient(mock)
-			err := SendEmail(tt.to, tt.subject, tt.body)
+			err := SendEmail(tt.to, tt.subject, tt.body, tt.body) // Using tt.body for both for simplicity in test
 			if (err != nil) != tt.wantErr {
 				t.Errorf("SendEmail() error = %v, wantErr %v", err, tt.wantErr)
 			}
