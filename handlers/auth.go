@@ -7,6 +7,7 @@ import (
         "log"
         "math/rand"
         "net/http"
+        "strings"
         "time"
 
         "auth.resultspro.ng/db"
@@ -36,7 +37,8 @@ func HandleSignup(w http.ResponseWriter, r *http.Request) {
                 return
         }
 
-        if input.Email == "" || input.Password == "" {
+        email := strings.ToLower(strings.TrimSpace(input.Email))
+        if email == "" || input.Password == "" {
                 http.Error(w, "Email and password are required", http.StatusBadRequest)
                 return
         }
@@ -62,7 +64,7 @@ func HandleSignup(w http.ResponseWriter, r *http.Request) {
 
         _, err = db.DB.Exec(query,
                 userID, 
-                input.Email, 
+                email, 
                 string(hashedPassword), 
                 "local", 
                 sql.NullString{String: input.FullName, Valid: input.FullName != ""}, 
@@ -89,10 +91,10 @@ func HandleSignup(w http.ResponseWriter, r *http.Request) {
                 log.Printf("Failed to create verification token: %v", err)
         }
 
-        log.Printf("OTP for %s: %s", input.Email, otp)
+        log.Printf("OTP for %s: %s", email, otp)
 
         go func() {
-                if err := utils.SendVerificationEmail(input.Email, otp); err != nil {
+                if err := utils.SendVerificationEmail(email, otp); err != nil {
                         log.Printf("Failed to send verification email: %v", err)
                 }
         }()
@@ -111,8 +113,9 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
                 return
         }
 
+        email := strings.ToLower(strings.TrimSpace(input.Email))
         var user models.User
-        err := db.DB.QueryRow("SELECT id, email, password_hash, account_status FROM users WHERE email = ? AND (auth_provider = 'local' OR auth_provider = 'both')", input.Email).Scan(
+        err := db.DB.QueryRow("SELECT id, email, password_hash, account_status FROM users WHERE email = ? AND (auth_provider = 'local' OR auth_provider = 'both')", email).Scan(
                 &user.ID, &user.Email, &user.PasswordHash, &user.AccountStatus)
 
         if err == sql.ErrNoRows {

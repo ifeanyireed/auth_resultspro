@@ -7,6 +7,7 @@ import (
         "encoding/base64"
         "encoding/json"
         "net/http"
+        "strings"
         "time"
 
         "auth.resultspro.ng/config"
@@ -101,6 +102,7 @@ func HandleMicrosoftCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 func processOAuthUser(w http.ResponseWriter, r *http.Request, googleID, microsoftID, email, name, avatar, provider string) {
+        email = strings.ToLower(strings.TrimSpace(email))
         var user models.User
         query := "SELECT id, email, google_id, microsoft_id, auth_provider, full_name, avatar_url, account_status FROM users WHERE email = ?"
         params := []interface{}{email}

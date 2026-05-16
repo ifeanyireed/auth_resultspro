@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"auth.resultspro.ng/db"
@@ -67,16 +68,25 @@ func HandleForgotPassword(w http.ResponseWriter, r *http.Request) {
 		Email string `json:"email"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		log.Printf("Forgot Password: Failed to decode request: %v", err)
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
 
+	email := strings.ToLower(strings.TrimSpace(input.Email))
+	log.Printf("Forgot Password request for: %s (Original: %s)", email, input.Email)
+
 	var userID string
-	err := db.DB.QueryRow("SELECT id FROM users WHERE email = ?", input.Email).Scan(&userID)
+	err := db.DB.QueryRow("SELECT id FROM users WHERE email = ?", email).Scan(&userID)
 	if err == sql.ErrNoRows {
+		log.Printf("Forgot Password: No user found with email: %s", email)
 		// Don't reveal if user exists
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{"message": "If an account exists, a reset link has been sent."})
+		return
+	} else if err != nil {
+		log.Printf("Forgot Password: Database error: %v", err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
 
@@ -85,15 +95,18 @@ func HandleForgotPassword(w http.ResponseWriter, r *http.Request) {
 	_, err = db.DB.Exec("INSERT INTO verification_tokens (id, user_id, token_hash, type, expires_at) VALUES (?, ?, ?, 'password_reset', ?)",
 		uuid.New().String(), userID, token, expiresAt)
 	if err != nil {
+		log.Printf("Forgot Password: Failed to insert token: %v", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
 
-	log.Printf("MOCK EMAIL: Password reset link for %s: https://auth.resultspro.ng/reset-password?token=%s", input.Email, token)
+	log.Printf("Forgot Password: Token generated for %s. Sending email...", email)
 
 	go func() {
-		if err := utils.SendPasswordResetEmail(input.Email, token); err != nil {
-			log.Printf("Failed to send password reset email: %v", err)
+		if err := utils.SendPasswordResetEmail(email, token); err != nil {
+			log.Printf("CRITICAL: Failed to send password reset email to %s: %v", email, err)
+		} else {
+			log.Printf("SUCCESS: Password reset email sent to %s", email)
 		}
 	}()
 
@@ -214,7 +227,8 @@ func HandleChangeEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = db.DB.Exec("UPDATE users SET email = ?, account_status = 'unverified', updated_at = ? WHERE id = ?", input.NewEmail, time.Now(), userID)
+	newEmail := strings.ToLower(strings.TrimSpace(input.NewEmail))
+	_, err = db.DB.Exec("UPDATE users SET email = ?, account_status = 'unverified', updated_at = ? WHERE id = ?", newEmail, time.Now(), userID)
 	if err != nil {
 		http.Error(w, "Email already in use or database error", http.StatusConflict)
 		return
