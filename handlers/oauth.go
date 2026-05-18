@@ -119,52 +119,61 @@ func processOAuthUser(w http.ResponseWriter, r *http.Request, googleID, microsof
         err := db.DB.QueryRow(query, params...).Scan(
                 &user.ID, &user.Email, &user.GoogleID, &user.MicrosoftID, &user.AuthProvider, &user.FullName, &user.AvatarURL, &user.AccountStatus)
 
-        if err == sql.ErrNoRows {
-                user = models.User{
-                        ID:            uuid.New().String(),
-                        Email:         email,
-                        GoogleID:      sql.NullString{String: googleID, Valid: googleID != ""},
-                        MicrosoftID:   sql.NullString{String: microsoftID, Valid: microsoftID != ""},
-                        AuthProvider:  provider,
-                        FullName:      sql.NullString{String: name, Valid: name != ""},
-                        AvatarURL:     sql.NullString{String: avatar, Valid: avatar != ""},
-                        AccountStatus: "active",
-                        CreatedAt:     time.Now(),
-                        UpdatedAt:     time.Now(),
-                }
-                _, err = db.DB.Exec("INSERT INTO users (id, email, google_id, microsoft_id, auth_provider, full_name, avatar_url, account_status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        user.ID, user.Email, user.GoogleID, user.MicrosoftID, user.AuthProvider, user.FullName, user.AvatarURL, user.AccountStatus, user.CreatedAt, user.UpdatedAt)
-                if err != nil {
-                        http.Error(w, "Failed to save user", http.StatusInternalServerError)
-                        return
-                }
-        } else if err != nil {
-                http.Error(w, "Database error", http.StatusInternalServerError)
-                return
-        } else {
-                updated := false
-                if googleID != "" && !user.GoogleID.Valid {
-                        user.GoogleID = sql.NullString{String: googleID, Valid: true}
-                        updated = true
-                }
-                if microsoftID != "" && !user.MicrosoftID.Valid {
-                        user.MicrosoftID = sql.NullString{String: microsoftID, Valid: true}
-                        updated = true
-                }
+	if err == sql.ErrNoRows {
+		user = models.User{
+			ID:            uuid.New().String(),
+			Email:         email,
+			AuthProvider:  provider,
+			AccountStatus: "active",
+			CreatedAt:     time.Now(),
+			UpdatedAt:     time.Now(),
+		}
+		if googleID != "" {
+			user.GoogleID = &googleID
+		}
+		if microsoftID != "" {
+			user.MicrosoftID = &microsoftID
+		}
+		if name != "" {
+			user.FullName = &name
+		}
+		if avatar != "" {
+			user.AvatarURL = &avatar
+		}
 
-                if updated {
-                        if user.AuthProvider != provider && user.AuthProvider != "both" && user.AuthProvider != "mixed" {
-                                user.AuthProvider = "mixed"
-                        }
-                        user.AccountStatus = "active"
-                        _, err = db.DB.Exec("UPDATE users SET google_id = ?, microsoft_id = ?, auth_provider = ?, account_status = ?, updated_at = ? WHERE id = ?",
-                                user.GoogleID, user.MicrosoftID, user.AuthProvider, user.AccountStatus, time.Now(), user.ID)
-                        if err != nil {
-                                http.Error(w, "Failed to update user", http.StatusInternalServerError)
-                                return
-                        }
-                }
-        }
+		_, err = db.DB.Exec("INSERT INTO users (id, email, google_id, microsoft_id, auth_provider, full_name, avatar_url, account_status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			user.ID, user.Email, user.GoogleID, user.MicrosoftID, user.AuthProvider, user.FullName, user.AvatarURL, user.AccountStatus, time.Now().UTC().Format("2006-01-02T15:04:05.000Z"), time.Now().UTC().Format("2006-01-02T15:04:05.000Z"))
+		if err != nil {
+			http.Error(w, "Failed to save user", http.StatusInternalServerError)
+			return
+		}
+	} else if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	} else {
+		updated := false
+		if googleID != "" && user.GoogleID == nil {
+			user.GoogleID = &googleID
+			updated = true
+		}
+		if microsoftID != "" && user.MicrosoftID == nil {
+			user.MicrosoftID = &microsoftID
+			updated = true
+		}
+
+		if updated {
+			if user.AuthProvider != provider && user.AuthProvider != "both" && user.AuthProvider != "mixed" {
+				user.AuthProvider = "mixed"
+			}
+			user.AccountStatus = "active"
+			_, err = db.DB.Exec("UPDATE users SET google_id = ?, microsoft_id = ?, auth_provider = ?, account_status = ?, updated_at = ? WHERE id = ?",
+				user.GoogleID, user.MicrosoftID, user.AuthProvider, user.AccountStatus, time.Now().UTC().Format("2006-01-02T15:04:05.000Z"), user.ID)
+			if err != nil {
+				http.Error(w, "Failed to update user", http.StatusInternalServerError)
+				return
+			}
+		}
+	}
 
         if user.AccountStatus == "suspended" {
                 http.Error(w, "Account suspended", http.StatusForbidden)
@@ -189,7 +198,7 @@ func processOAuthUser(w http.ResponseWriter, r *http.Request, googleID, microsof
         expiresAt := time.Now().Add(time.Hour * 24 * 7)
         deviceInfo := r.UserAgent()
         _, err = db.DB.Exec("INSERT INTO refresh_tokens (id, user_id, token_hash, device_info, expires_at) VALUES (?, ?, ?, ?, ?)",
-                refreshTokenID, user.ID, refreshToken, deviceInfo, expiresAt)
+                refreshTokenID, user.ID, refreshToken, deviceInfo, expiresAt.UTC().Format("2006-01-02T15:04:05.000Z"))
         if err != nil {
                 http.Error(w, "Failed to save refresh token", http.StatusInternalServerError)
                 return

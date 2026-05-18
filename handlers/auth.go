@@ -55,10 +55,10 @@ func HandleSignup(w http.ResponseWriter, r *http.Request) {
         query := `INSERT INTO users (id, email, password_hash, auth_provider, full_name, phone, sex, date_of_birth, address, account_status, mfa_enabled, created_at, updated_at) 
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
-        var dob sql.NullTime
+        var dob sql.NullString
         if input.DateOfBirth != "" {
                 if t, err := time.Parse(time.RFC3339, input.DateOfBirth); err == nil {
-                        dob = sql.NullTime{Time: t, Valid: true}
+                        dob = sql.NullString{String: t.UTC().Format("2006-01-02T15:04:05.000Z"), Valid: true}
                 }
         }
 
@@ -73,9 +73,9 @@ func HandleSignup(w http.ResponseWriter, r *http.Request) {
                 dob, 
                 sql.NullString{String: input.Address, Valid: input.Address != ""}, 
                 "unverified", 
-                false, 
-                now, 
-                now)
+                0, 
+                now.UTC().Format("2006-01-02T15:04:05.000Z"), 
+                now.UTC().Format("2006-01-02T15:04:05.000Z"))
 
         if err != nil {
                 log.Printf("Signup DB Error: %v", err)
@@ -86,7 +86,7 @@ func HandleSignup(w http.ResponseWriter, r *http.Request) {
         otp := generateOTP()
         expiresAt := time.Now().Add(time.Hour * 24)
         _, err = db.DB.Exec("INSERT INTO verification_tokens (id, user_id, token_hash, type, expires_at) VALUES (?, ?, ?, 'email_verify', ?)",
-                uuid.New().String(), userID, otp, expiresAt)
+                uuid.New().String(), userID, otp, expiresAt.UTC().Format("2006-01-02T15:04:05.000Z"))
         if err != nil {
                 log.Printf("Failed to create verification token: %v", err)
         }
@@ -126,12 +126,13 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
                 return
         }
 
-        if !user.PasswordHash.Valid {
-                http.Error(w, "Invalid login method", http.StatusUnauthorized)
-                return
+        if user.PasswordHash == nil {
+        	http.Error(w, "Invalid login method", http.StatusUnauthorized)
+        	return
         }
 
-        err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash.String), []byte(input.Password))
+        err = bcrypt.CompareHashAndPassword([]byte(*user.PasswordHash), []byte(input.Password))
+
         if err != nil {
                 http.Error(w, "Invalid email or password", http.StatusUnauthorized)
                 return
@@ -171,7 +172,7 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
         expiresAt := time.Now().Add(time.Hour * 24 * 7)
         deviceInfo := r.UserAgent()
         _, err = db.DB.Exec("INSERT INTO refresh_tokens (id, user_id, token_hash, device_info, expires_at) VALUES (?, ?, ?, ?, ?)",
-                refreshTokenID, user.ID, refreshToken, deviceInfo, expiresAt)
+                refreshTokenID, user.ID, refreshToken, deviceInfo, expiresAt.UTC().Format("2006-01-02T15:04:05.000Z"))
         if err != nil {
                 http.Error(w, "Failed to save refresh token", http.StatusInternalServerError)
                 return

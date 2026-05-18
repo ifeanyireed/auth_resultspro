@@ -63,20 +63,20 @@ func HandleMFAVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var secret string
+	var secret *string
 	err = db.DB.QueryRow("SELECT mfa_secret FROM users WHERE id = ?", userID).Scan(&secret)
-	if err != nil || secret == "" {
+	if err != nil || secret == nil || *secret == "" {
 		http.Error(w, "MFA not set up", http.StatusBadRequest)
 		return
 	}
 
-	valid := totp.Validate(input.Code, secret)
+	valid := totp.Validate(input.Code, *secret)
 	if !valid {
 		http.Error(w, "Invalid MFA code", http.StatusUnauthorized)
 		return
 	}
 
-	_, err = db.DB.Exec("UPDATE users SET mfa_enabled = TRUE WHERE id = ?", userID)
+	_, err = db.DB.Exec("UPDATE users SET mfa_enabled = 1 WHERE id = ?", userID)
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
@@ -101,19 +101,19 @@ func HandleMFADisable(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var secret string
+	var secret *string
 	err = db.DB.QueryRow("SELECT mfa_secret FROM users WHERE id = ?", userID).Scan(&secret)
-	if err != nil {
+	if err != nil || secret == nil || *secret == "" {
 		http.Error(w, "MFA not active", http.StatusBadRequest)
 		return
 	}
 
-	if !totp.Validate(input.Code, secret) {
+	if !totp.Validate(input.Code, *secret) {
 		http.Error(w, "Invalid MFA code", http.StatusUnauthorized)
 		return
 	}
 
-	_, err = db.DB.Exec("UPDATE users SET mfa_enabled = FALSE, mfa_secret = NULL WHERE id = ?", userID)
+	_, err = db.DB.Exec("UPDATE users SET mfa_enabled = 0, mfa_secret = NULL WHERE id = ?", userID)
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
@@ -134,14 +134,14 @@ func HandleMFAChallenge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var secret string
+	var secret *string
 	err := db.DB.QueryRow("SELECT mfa_secret FROM users WHERE id = ?", input.UserID).Scan(&secret)
-	if err != nil {
+	if err != nil || secret == nil {
 		http.Error(w, "User not found or MFA not active", http.StatusUnauthorized)
 		return
 	}
 
-	if !totp.Validate(input.Code, secret) {
+	if !totp.Validate(input.Code, *secret) {
 		http.Error(w, "Invalid MFA code", http.StatusUnauthorized)
 		return
 	}
@@ -164,7 +164,7 @@ func HandleMFAChallenge(w http.ResponseWriter, r *http.Request) {
 	expiresAt := time.Now().Add(time.Hour * 24 * 7)
 	deviceInfo := r.UserAgent()
 	_, err = db.DB.Exec("INSERT INTO refresh_tokens (id, user_id, token_hash, device_info, expires_at) VALUES (?, ?, ?, ?, ?)",
-		refreshTokenID, input.UserID, refreshToken, deviceInfo, expiresAt)
+		refreshTokenID, input.UserID, refreshToken, deviceInfo, expiresAt.UTC().Format("2006-01-02T15:04:05.000Z"))
 	if err != nil {
 		http.Error(w, "Failed to save refresh token", http.StatusInternalServerError)
 		return

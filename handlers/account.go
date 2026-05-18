@@ -44,14 +44,14 @@ func HandleVerifyEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = tx.Exec("UPDATE users SET account_status = 'active', updated_at = ? WHERE id = ?", time.Now(), userID)
+	_, err = tx.Exec("UPDATE users SET account_status = 'active', updated_at = ? WHERE id = ?", time.Now().UTC().Format("2006-01-02T15:04:05.000Z"), userID)
 	if err != nil {
 		tx.Rollback()
 		http.Error(w, "Failed to update user status", http.StatusInternalServerError)
 		return
 	}
 
-	_, err = tx.Exec("UPDATE verification_tokens SET used = TRUE WHERE token_hash = ?", input.Token)
+	_, err = tx.Exec("UPDATE verification_tokens SET used = 1 WHERE token_hash = ?", input.Token)
 	if err != nil {
 		tx.Rollback()
 		http.Error(w, "Failed to update token status", http.StatusInternalServerError)
@@ -93,7 +93,7 @@ func HandleForgotPassword(w http.ResponseWriter, r *http.Request) {
 	token, _ := utils.GenerateRandomString(32)
 	expiresAt := time.Now().Add(time.Hour * 1)
 	_, err = db.DB.Exec("INSERT INTO verification_tokens (id, user_id, token_hash, type, expires_at) VALUES (?, ?, ?, 'password_reset', ?)",
-		uuid.New().String(), userID, token, expiresAt)
+		uuid.New().String(), userID, token, expiresAt.UTC().Format("2006-01-02T15:04:05.000Z"))
 	if err != nil {
 		log.Printf("Forgot Password: Failed to insert token: %v", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
@@ -150,14 +150,14 @@ func HandleResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = tx.Exec("UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?", string(hashedPassword), time.Now(), userID)
+	_, err = tx.Exec("UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?", string(hashedPassword), time.Now().UTC().Format("2006-01-02T15:04:05.000Z"), userID)
 	if err != nil {
 		tx.Rollback()
 		http.Error(w, "Failed to update password", http.StatusInternalServerError)
 		return
 	}
 
-	_, err = tx.Exec("UPDATE verification_tokens SET used = TRUE WHERE token_hash = ?", input.Token)
+	_, err = tx.Exec("UPDATE verification_tokens SET used = 1 WHERE token_hash = ?", input.Token)
 	if err != nil {
 		tx.Rollback()
 		http.Error(w, "Failed to update token status", http.StatusInternalServerError)
@@ -186,15 +186,15 @@ func HandleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var currentHash string
+	var currentHash *string
 	err = db.DB.QueryRow("SELECT password_hash FROM users WHERE id = ?", userID).Scan(&currentHash)
 	if err != nil {
 		http.Error(w, "User not found", http.StatusNotFound)
 		return
 	}
 
-	if currentHash != "" {
-		err = bcrypt.CompareHashAndPassword([]byte(currentHash), []byte(input.OldPassword))
+	if currentHash != nil {
+		err = bcrypt.CompareHashAndPassword([]byte(*currentHash), []byte(input.OldPassword))
 		if err != nil {
 			http.Error(w, "Invalid old password", http.StatusUnauthorized)
 			return
@@ -202,7 +202,7 @@ func HandleChangePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	newHash, _ := bcrypt.GenerateFromPassword([]byte(input.NewPassword), bcrypt.DefaultCost)
-	_, err = db.DB.Exec("UPDATE users SET password_hash = ?, auth_provider = CASE WHEN auth_provider = 'google' THEN 'both' ELSE auth_provider END, updated_at = ? WHERE id = ?", string(newHash), time.Now(), userID)
+	_, err = db.DB.Exec("UPDATE users SET password_hash = ?, auth_provider = CASE WHEN auth_provider = 'google' THEN 'both' ELSE auth_provider END, updated_at = ? WHERE id = ?", string(newHash), time.Now().UTC().Format("2006-01-02T15:04:05.000Z"), userID)
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
@@ -228,7 +228,7 @@ func HandleChangeEmail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	newEmail := strings.ToLower(strings.TrimSpace(input.NewEmail))
-	_, err = db.DB.Exec("UPDATE users SET email = ?, account_status = 'unverified', updated_at = ? WHERE id = ?", newEmail, time.Now(), userID)
+	_, err = db.DB.Exec("UPDATE users SET email = ?, account_status = 'unverified', updated_at = ? WHERE id = ?", newEmail, time.Now().UTC().Format("2006-01-02T15:04:05.000Z"), userID)
 	if err != nil {
 		http.Error(w, "Email already in use or database error", http.StatusConflict)
 		return

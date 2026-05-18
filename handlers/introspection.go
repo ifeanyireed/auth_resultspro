@@ -50,10 +50,10 @@ func HandleIntrospect(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var user struct {
-		ID            string `json:"id"`
-		Email         string `json:"email"`
-		FullName      string `json:"full_name"`
-		AccountStatus string `json:"account_status"`
+		ID            string  `json:"id"`
+		Email         string  `json:"email"`
+		FullName      *string `json:"full_name"`
+		AccountStatus string  `json:"account_status"`
 	}
 	err = db.DB.QueryRow("SELECT id, email, full_name, account_status FROM users WHERE id = ?", userID).Scan(&user.ID, &user.Email, &user.FullName, &user.AccountStatus)
 	if err != nil {

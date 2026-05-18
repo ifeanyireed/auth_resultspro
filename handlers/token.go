@@ -61,7 +61,7 @@ func HandleLogout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := db.DB.Exec("UPDATE refresh_tokens SET revoked = TRUE WHERE token_hash = ?", input.RefreshToken)
+	_, err := db.DB.Exec("UPDATE refresh_tokens SET revoked = 1 WHERE token_hash = ?", input.RefreshToken)
 	if err != nil {
 		http.Error(w, "Failed to revoke token", http.StatusInternalServerError)
 		return
@@ -97,7 +97,7 @@ func HandleLogoutAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = db.DB.Exec("UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ?", userID)
+	_, err = db.DB.Exec("UPDATE refresh_tokens SET revoked = 1 WHERE user_id = ?", userID)
 	if err != nil {
 		http.Error(w, "Failed to revoke tokens", http.StatusInternalServerError)
 		return
