@@ -65,7 +65,8 @@ func HandleVerifyEmail(w http.ResponseWriter, r *http.Request) {
 
 func HandleForgotPassword(w http.ResponseWriter, r *http.Request) {
 	var input struct {
-		Email string `json:"email"`
+		Email       string `json:"email"`
+		RedirectURL string `json:"redirect_url"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		log.Printf("Forgot Password: Failed to decode request: %v", err)
@@ -103,7 +104,7 @@ func HandleForgotPassword(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Forgot Password: Token generated for %s. Sending email...", email)
 
 	go func() {
-		if err := utils.SendPasswordResetEmail(email, token); err != nil {
+		if err := utils.SendPasswordResetEmail(email, token, input.RedirectURL); err != nil {
 			log.Printf("CRITICAL: Failed to send password reset email to %s: %v", email, err)
 		} else {
 			log.Printf("SUCCESS: Password reset email sent to %s", email)

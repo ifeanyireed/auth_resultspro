@@ -105,7 +105,7 @@ func TestSendPasswordResetEmail(t *testing.T) {
 	SetSESClient(mock)
 	token := "test-token"
 	to := "user@example.com"
-	err := SendPasswordResetEmail(to, token)
+	err := SendPasswordResetEmail(to, token, "")
 	if err != nil {
 		t.Errorf("SendPasswordResetEmail() error = %v", err)
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -89,10 +90,10 @@ func SendVerificationEmail(to string, otp string) error {
 <div style="font-family: 'Google Sans', Roboto, RobotoDraft, Helvetica, Arial, sans-serif; background-color: #ffffff; padding: 40px; margin: 0; color: #3c4043; border: 1px solid #dadce0; border-radius: 8px; max-width: 600px;">
   <div style="margin-bottom: 24px; display: flex; align-items: center;">
     <img src="https://resultspro.ng/logo.png" alt="ResultsPRO" style="height: 32px; margin-right: 4px; border-radius: 6px;">
-    <div style="display: flex; flex-direction: column; line-height: 1;">
-      <span style="font-size: 18px; font-weight: 700; color: #202124; letter-spacing: -0.01em;">ResultsPRO</span>
-      <span style="font-size: 9px; font-weight: 700; color: #1a73e8; text-transform: uppercase; letter-spacing: 0.15em; margin-top: 2px;">SUITE</span>
-    </div>
+	<div style="line-height: 1.1;">
+	  <div style="font-size: 18px; font-weight: 700; color: #202124; letter-spacing: -0.01em; font-family: sans-serif;">ResultsPRO</div>
+	  <div style="font-size: 9px; font-weight: 700; color: #1a73e8; text-transform: uppercase; letter-spacing: 0.15em; margin-top: 2px; font-family: sans-serif;">SUITE</div>
+	</div>
   </div>
   <h1 style="font-size: 24px; font-weight: 400; color: #202124; margin-bottom: 24px; margin-top: 0;">Verify your email address</h1>
   <p style="font-size: 14px; line-height: 20px; margin-bottom: 24px;">
@@ -116,9 +117,18 @@ func SendVerificationEmail(to string, otp string) error {
 	return SendEmail(to, subject, htmlBody, textBody)
 }
 
-func SendPasswordResetEmail(to string, token string) error {
+func SendPasswordResetEmail(to string, token string, resetURL string) error {
+	if resetURL == "" {
+		resetURL = "https://auth.resultspro.ng/reset-password"
+	}
+
+	link := fmt.Sprintf("%s?token=%s", resetURL, token)
+	if strings.Contains(resetURL, "?") {
+		link = fmt.Sprintf("%s&token=%s", resetURL, token)
+	}
+
 	subject := "Reset your password - ResultsPRO Suite"
-	textBody := fmt.Sprintf("Reset your password by visiting: https://auth.resultspro.ng/reset-password?token=%s", token)
+	textBody := fmt.Sprintf("Reset your password by visiting: %s", link)
 	htmlBody := fmt.Sprintf(`
 <div style="font-family: 'Google Sans', Roboto, RobotoDraft, Helvetica, Arial, sans-serif; background-color: #ffffff; padding: 40px; margin: 0; color: #3c4043; border: 1px solid #dadce0; border-radius: 8px; max-width: 600px;">
   <div style="margin-bottom: 24px; display: flex; align-items: center;">
@@ -133,7 +143,7 @@ func SendPasswordResetEmail(to string, token string) error {
     We received a request to reset your ResultsPRO Suite password. Click the link below to choose a new one:
   </p>
   <div style="text-align: center; margin-bottom: 24px;">
-    <a href="https://auth.resultspro.ng/reset-password?token=%s" style="background-color: #1a73e8; color: #ffffff; padding: 12px 24px; border-radius: 4px; text-decoration: none; font-weight: 500; display: inline-block;">Reset Password</a>
+    <a href="%s" style="background-color: #1a73e8; color: #ffffff; padding: 12px 24px; border-radius: 4px; text-decoration: none; font-weight: 500; display: inline-block;">Reset Password</a>
   </div>
   <p style="font-size: 14px; line-height: 20px; margin-bottom: 24px;">
     If you didn't request a password reset, you can safely ignore this email. This link will expire in 1 hour.
@@ -142,6 +152,6 @@ func SendPasswordResetEmail(to string, token string) error {
   <p style="font-size: 12px; line-height: 16px; color: #70757a;">
     You received this email because a password reset was requested for your ResultsPRO Suite account.
   </p>
-</div>`, token)
+</div>`, link)
 	return SendEmail(to, subject, htmlBody, textBody)
 }
