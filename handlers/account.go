@@ -170,6 +170,93 @@ func HandleResetPassword(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"message": "Password reset successfully"})
 }
 
+func HandleUpdateProfile(w http.ResponseWriter, r *http.Request) {
+	userID, err := getUserIDFromToken(r)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var input struct {
+		Name        *string `json:"name"`
+		Phone       *string `json:"phone"`
+		Sex         *string `json:"sex"`
+		DateOfBirth *string `json:"dateOfBirth"`
+		Address     *string `json:"address"`
+		AvatarURL   *string `json:"avatarUrl"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	query := "UPDATE users SET updated_at = ?"
+	args := []interface{}{time.Now().UTC().Format("2006-01-02T15:04:05.000Z")}
+
+	if input.Name != nil {
+		query += ", full_name = ?"
+		args = append(args, *input.Name)
+	}
+	if input.Phone != nil {
+		query += ", phone = ?"
+		args = append(args, *input.Phone)
+	}
+	if input.Sex != nil {
+		query += ", sex = ?"
+		args = append(args, *input.Sex)
+	}
+	if input.DateOfBirth != nil {
+		query += ", date_of_birth = ?"
+		args = append(args, *input.DateOfBirth)
+	}
+	if input.Address != nil {
+		query += ", address = ?"
+		args = append(args, *input.Address)
+	}
+	if input.AvatarURL != nil {
+		query += ", avatar_url = ?"
+		args = append(args, *input.AvatarURL)
+	}
+
+	query += " WHERE id = ?"
+	args = append(args, userID)
+
+	_, err = db.DB.Exec(query, args...)
+	if err != nil {
+		log.Printf("Update Profile Error: %v", err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+
+	// Fetch updated user to return
+	var user struct {
+		ID            string         `json:"id"`
+		Email         string         `json:"email"`
+		FullName      sql.NullString `json:"full_name"`
+		Phone         sql.NullString `json:"phone"`
+		Sex           sql.NullString `json:"sex"`
+		DateOfBirth   sql.NullString `json:"date_of_birth"`
+		Address       sql.NullString `json:"address"`
+		AvatarURL     sql.NullString `json:"avatar_url"`
+		AccountStatus string         `json:"account_status"`
+	}
+
+	err = db.DB.QueryRow("SELECT id, email, full_name, phone, sex, date_of_birth, address, avatar_url, account_status FROM users WHERE id = ?", userID).Scan(
+		&user.ID, &user.Email, &user.FullName, &user.Phone, &user.Sex, &user.DateOfBirth, &user.Address, &user.AvatarURL, &user.AccountStatus)
+
+	if err != nil {
+		http.Error(w, "Failed to fetch updated profile", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message": "Profile updated successfully",
+		"user":    user,
+	})
+}
+
 func HandleChangePassword(w http.ResponseWriter, r *http.Request) {
 	// Authenticated endpoint
 	userID, err := getUserIDFromToken(r)
