@@ -5,6 +5,7 @@ npm install prisma@5 --save-dev
 npx prisma init
 
 //launch prisma studio
+cd /var/www/auth_resultspro
 npx prisma studio --port 5555
 //keep ssh terminal open and run these commands in another terminal
 ssh -L 5555:localhost:5555 root@167.99.15.196
@@ -13,8 +14,6 @@ ssh -L 5555:localhost:5555 root@167.99.15.196
 // Build the application
 go build -o auth-binary main.go
 
-//seed the database
-sqlite3 /var/lib/auth_resultspro/data/auth.db < seed_central_auth.sql
 
 //update the schema
 cd /var/www/auth_resultspro
@@ -30,6 +29,8 @@ datasource db {
   url      = "file:///var/lib/auth_resultspro/data/auth.db"
 }
 
+//seed the database
+sqlite3 /var/lib/auth_resultspro/data/auth.db < seed_central_auth.sql
 
 //users
 ┌────────────┬─────────────────────────────┬────────────┐

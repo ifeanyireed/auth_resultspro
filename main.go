@@ -19,12 +19,7 @@ func main() {
 
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
-		databaseURL = "auth.db"
-	}
-
-	// Strip "file:" prefix if present for the SQLite driver
-	if len(databaseURL) > 5 && databaseURL[:5] == "file:" {
-		databaseURL = databaseURL[5:]
+		log.Fatal("DATABASE_URL is required")
 	}
 
 	db.InitDB(databaseURL)
@@ -60,7 +55,7 @@ func main() {
 		port = "8080"
 	}
 
-	log.Printf("Server starting on port %s...", port)
+	log.Printf("Central Auth Service starting on port %s...", port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatal(err)
 	}
