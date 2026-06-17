@@ -11,7 +11,8 @@ import (
 )
 
 func main() {
-	godotenv.Load("../.env")
+	// Attempt to load .env from current directory or parent directory
+	godotenv.Load(".env", "../.env")
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
 		log.Fatal("DATABASE_URL is required")

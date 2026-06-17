@@ -1,0 +1,15 @@
+[Unit]
+Description=Central Auth Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/var/www/auth_resultspro
+ExecStart=/var/www/auth_resultspro/auth_service
+Restart=always
+RestartSec=5
+EnvironmentFile=/var/www/auth_resultspro/.env
+
+[Install]
+WantedBy=multi-user.target
